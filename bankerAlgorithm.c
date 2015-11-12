@@ -5,6 +5,8 @@
 //Execute the program in command line like "test.exe 5 5 5", the follow numbers are used
 //to initialize the resource vector
 //customer0 function will randomly request and release resources
+//Now pthread library is used to run customer.
+//For synchronization, I used a mutex lock for request and release method and printf.
 *******************************************************************/
 #include <stdio.h>
 #include <pthread.h>
@@ -14,12 +16,13 @@
 
 int i = 0;//Switch on C99 mode or we cannot initialize variable in for loop
 int j = 0;
+pthread_mutex_t mutex;//mutex lock for access to global variable
 
 int initResourceVector [resourceTypeQuan];
 //available, max, allocation, need
 int availResourceVector [resourceTypeQuan];
 int allocMatrix [processQuan][resourceTypeQuan] = {{1,1,0},{1,3,0},{0,0,2},{0,1,1},{0,2,0}};
-int maxMatrix [processQuan][resourceTypeQuan] = {{5,5,5},{3,3,6},{3,5,3},{8,1,4},{7,2,2}};
+int maxMatrix [processQuan][resourceTypeQuan] = {{5,5,5},{3,3,6},{3,5,3},{7,1,4},{7,2,2}};
 int needMatrix [processQuan][resourceTypeQuan];
 
 int requestResource(int processID,int requestVector[]);
@@ -33,6 +36,7 @@ void printAllocMatrix();
 void printAvailable();
 void printReqOrRelVector(int vec[]);
 void *customer0();
+void *customer1();
 
 int main(int argc, char const *argv[])
 {
@@ -66,12 +70,13 @@ int main(int argc, char const *argv[])
 	printNeedMatrix();
 
 	pthread_t tid1,tid2; 
+	pthread_mutex_init(&mutex,NULL);//declared at head of code
 	pthread_attr_t attrDefault;
 	pthread_attr_init(&attrDefault);
 	pthread_create(&tid1, &attrDefault, customer0, NULL);
-	//pthread_create(&tid2, &attrDefault, customer1, num);
+	pthread_create(&tid2, &attrDefault, customer1, NULL);
 	pthread_join(tid1,NULL);
-	//pthread_join(tid2,NULL);
+	pthread_join(tid2,NULL);
 	return 0;
 }
 
@@ -83,6 +88,7 @@ void *customer0()
 		//request random number of resources
 		sleep(1);
 		int requestVector[resourceTypeQuan];
+		//initialize requestVector
 		for(i = 0; i < resourceTypeQuan; i++)
 		{
 			if(needMatrix[0][i] != 0)
@@ -94,15 +100,21 @@ void *customer0()
 				requestVector[i] = 0;
 			}
 		}
+
+		//lock mutex for accessing global variable and printf
+		pthread_mutex_lock(&mutex);
 		printf("Customer0 is trying to request resources:\n");
 		printReqOrRelVector(requestVector);
 		//requestResource() will still return -1 when it fail and return 0 when succeed in allocate, like textbook says
 		//altough I put the error message output part in the requestResource function
 		requestResource(0,requestVector);
+		//unlock
+		pthread_mutex_unlock(&mutex);
 	
 		//release random number of resources		
 		sleep(1);
 		int releaseVector[resourceTypeQuan];
+		//initialize releaseVector
 		for(i = 0; i < resourceTypeQuan; i++)
 		{
 			if(allocMatrix[0][i] != 0)
@@ -114,11 +126,73 @@ void *customer0()
 				releaseVector[i] = 0;
 			}
 		}
+		//lock mutex for accessing global variable and printf
+		pthread_mutex_lock(&mutex);
 		printf("Customer0 is trying to release resources:\n");
 		printReqOrRelVector(releaseVector);
 		//releaseResource() will still return -1 when it fail and return 0 when succeed in allocate, like textbook says
 		//altough I put the error message output part in the releaseResource function
 		releaseResource(0,releaseVector);
+		//unlock
+		pthread_mutex_unlock(&mutex);
+	}
+}
+void *customer1()
+{
+	int i;//multi thread cannot use the same i
+	while(1)
+	{
+		//request random number of resources
+		sleep(1);
+		int requestVector[resourceTypeQuan];
+		//initialize requestVector
+		for(i = 0; i < resourceTypeQuan; i++)
+		{
+			if(needMatrix[1][i] != 0)
+			{
+				requestVector[i] = rand() % needMatrix[1][i];
+			}
+			else
+			{
+				requestVector[i] = 0;
+			}
+		}
+
+		//lock mutex for accessing global variable and printf
+		pthread_mutex_lock(&mutex);
+		printf("Customer1 is trying to request resources:\n");
+		printReqOrRelVector(requestVector);
+		//requestResource() will still return -1 when it fail and return 0 when succeed in allocate, like textbook says
+		//altough I put the error message output part in the requestResource function
+		requestResource(1,requestVector);
+		//unlock
+		pthread_mutex_unlock(&mutex);
+	
+		//release random number of resources		
+		sleep(1);
+		int releaseVector[resourceTypeQuan];
+		//initialize releaseVector
+		for(i = 0; i < resourceTypeQuan; i++)
+		{
+			if(allocMatrix[1][i] != 0)
+			{
+				releaseVector[i] = rand() % allocMatrix[1][i];
+			}
+			else
+			{
+				releaseVector[i] = 0;
+			}
+		}
+
+		//lock mutex for accessing global variable and printf
+		pthread_mutex_lock(&mutex);
+		printf("Customer1 is trying to release resources:\n");
+		printReqOrRelVector(releaseVector);
+		//releaseResource() will still return -1 when it fail and return 0 when succeed in allocate, like textbook says
+		//altough I put the error message output part in the releaseResource function
+		releaseResource(1,releaseVector);
+		//unlock
+		pthread_mutex_unlock(&mutex);
 	}
 }
 
