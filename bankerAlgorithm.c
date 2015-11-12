@@ -1,3 +1,11 @@
+/*******************************************************************
+//This is a sample of banker's algorithm for OS deadlock prevention
+//Built by Ling He
+// 11/11/2015
+//Execute the program in command line like "test.exe 5 5 5", the follow numbers are used
+//to initialize the resource vector
+//customer0 function will randomly request and release resources
+*******************************************************************/
 #include <stdio.h>
 
 #define resourceTypeQuan 3
@@ -6,6 +14,7 @@
 int i = 0;//Switch on C99 mode or we cannot initialize variable in for loop
 int j = 0;
 
+int initResourceVector [resourceTypeQuan];
 //available, max, allocation, need
 int availResourceVector [resourceTypeQuan];
 int allocMatrix [processQuan][resourceTypeQuan] = {{1,1,4},{1,3,0},{0,0,2},{4,1,1},{0,2,0}};
@@ -21,6 +30,8 @@ int ifEnoughToAlloc();
 void printNeedMatrix();
 void printAllocMatrix();
 void printAvailable();
+void printReqOrRelVector(int vec[]);
+void *customer0();
 
 int main(int argc, char const *argv[])
 {
@@ -31,7 +42,8 @@ int main(int argc, char const *argv[])
 	}
 	for(i = 0; i < resourceTypeQuan; i++)
 	{
-		availResourceVector[i] = atoi(argv[i+1]);//argv[0] is name of program
+		initResourceVector[i] = atoi(argv[i+1]);//argv[0] is name of program
+		availResourceVector[i] = initResourceVector[i];
 	}
 
 	//initialize needMatrix
@@ -52,28 +64,53 @@ int main(int argc, char const *argv[])
 	printf("Initial need matrix is:\n");
 	printNeedMatrix();
 
-	int processID;
-
-	printf("Please type in process ID which you request resources for(range from 0 to 4)\n");
-	scanf("%d",&processID);
-	if (processID > processQuan - 1 || processID < 0)
-	{
-		printf("Illegal process ID.\n");
-		return -1;
-	}
-
-	printf("Please type in your request vector likes \"1 1 1\"\n");
-
-	int requestVector[resourceTypeQuan];
-	for (i = 0; i < resourceTypeQuan; ++i)
-	{
-		scanf("%d",&requestVector[i]);
-	}
-
-	requestResource(processID,requestVector);
-
-
+	customer0();
 	return 0;
+}
+
+void *customer0()
+{
+	int i;//multi thread cannot use the same i
+
+	//request random number of resources
+	sleep(1);
+	int requestVector[resourceTypeQuan];
+	for(i = 0; i < resourceTypeQuan; i++)
+	{
+		if(needMatrix[0][i] != 0)
+		{
+			requestVector[i] = rand() % needMatrix[0][i];
+		}
+		else
+		{
+			requestVector[i] = 0;
+		}
+	}
+	printf("Customer0 is trying to request resources:\n");
+	printReqOrRelVector(requestVector);
+	//requestResource() will still return -1 when it fail and return 0 when succeed in allocate, like textbook says
+	//altough I put the error message output part in the requestResource function
+	requestResource(0,requestVector);
+	sleep(1);
+
+	//release random number of resources
+	int releaseVector[resourceTypeQuan];
+	for(i = 0; i < resourceTypeQuan; i++)
+	{
+		if(allocMatrix[0][i] != 0)
+		{
+			releaseVector[i] = rand() % allocMatrix[0][i];
+		}
+		else
+		{
+			releaseVector[i] = 0;
+		}
+	}
+	printf("Customer0 is trying to release resources:\n");
+	printReqOrRelVector(releaseVector);
+	//releaseResource() will still return -1 when it fail and return 0 when succeed in allocate, like textbook says
+	//altough I put the error message output part in the releaseResource function
+	releaseResource(0,releaseVector);
 }
 
 int requestResource(int processID,int requestVector[])
@@ -120,6 +157,7 @@ int requestResource(int processID,int requestVector[])
 		{
 			needMatrix[processID][i] += requestVector[i];
 			allocMatrix[processID][i] -= requestVector[i];
+			availResourceVector[i] += requestVector[i];
 		}
 		printf("Rolled back successfully.\n");
 		return -1;
@@ -128,17 +166,25 @@ int requestResource(int processID,int requestVector[])
 
 int releaseResource(int processID,int releaseVector[])
 {
-	if(ifEnoughToRelease() == -1)
+	if(ifEnoughToRelease(processID,releaseVector) == -1)
 	{
 		printf("The process do not own enough resources to release.\n");
 		return -1;
 	}
+
+	//enough to release
 	for(i = 0; i < resourceTypeQuan; i++)
 	{
 		allocMatrix[processID][i] -= releaseVector[i];
 		needMatrix[processID][i] += releaseVector[i];
 		availResourceVector[i] += releaseVector[i];
 	}
+	printf("Release successfully.\nNow available resources vector is:\n");
+	printAvailable();
+	printf("Now allocated matrix is:\n");
+	printAllocMatrix();
+	printf("Now need matrix is:\n");
+	printNeedMatrix();
 	return 0;
 }
 
@@ -228,6 +274,15 @@ void printAvailable()
 	return;
 }
 
+void printReqOrRelVector(int vec[])
+{
+	for (i = 0; i < resourceTypeQuan; ++i)
+	{
+		printf("%d, ",vec[i]);
+	}
+	printf("\n");
+	return;
+}
 int ifInSafeMode()
 {
 	int ifFinish[processQuan] = {0};//there is no bool type in old C
