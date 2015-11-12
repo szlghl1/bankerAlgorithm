@@ -7,6 +7,7 @@
 //customer0 function will randomly request and release resources
 *******************************************************************/
 #include <stdio.h>
+#include <pthread.h>
 
 #define resourceTypeQuan 3
 #define processQuan 5
@@ -17,8 +18,8 @@ int j = 0;
 int initResourceVector [resourceTypeQuan];
 //available, max, allocation, need
 int availResourceVector [resourceTypeQuan];
-int allocMatrix [processQuan][resourceTypeQuan] = {{1,1,4},{1,3,0},{0,0,2},{4,1,1},{0,2,0}};
-int maxMatrix [processQuan][resourceTypeQuan] = {{3,3,4},{3,3,3},{3,3,3},{4,1,1},{2,2,2}};
+int allocMatrix [processQuan][resourceTypeQuan] = {{1,1,0},{1,3,0},{0,0,2},{0,1,1},{0,2,0}};
+int maxMatrix [processQuan][resourceTypeQuan] = {{5,5,5},{3,3,6},{3,5,3},{8,1,4},{7,2,2}};
 int needMatrix [processQuan][resourceTypeQuan];
 
 int requestResource(int processID,int requestVector[]);
@@ -64,53 +65,61 @@ int main(int argc, char const *argv[])
 	printf("Initial need matrix is:\n");
 	printNeedMatrix();
 
-	customer0();
+	pthread_t tid1,tid2; 
+	pthread_attr_t attrDefault;
+	pthread_attr_init(&attrDefault);
+	pthread_create(&tid1, &attrDefault, customer0, NULL);
+	//pthread_create(&tid2, &attrDefault, customer1, num);
+	pthread_join(tid1,NULL);
+	//pthread_join(tid2,NULL);
 	return 0;
 }
 
 void *customer0()
 {
 	int i;//multi thread cannot use the same i
-
-	//request random number of resources
-	sleep(1);
-	int requestVector[resourceTypeQuan];
-	for(i = 0; i < resourceTypeQuan; i++)
+	while(1)
 	{
-		if(needMatrix[0][i] != 0)
+		//request random number of resources
+		sleep(1);
+		int requestVector[resourceTypeQuan];
+		for(i = 0; i < resourceTypeQuan; i++)
 		{
-			requestVector[i] = rand() % needMatrix[0][i];
+			if(needMatrix[0][i] != 0)
+			{
+				requestVector[i] = rand() % needMatrix[0][i];
+			}
+			else
+			{
+				requestVector[i] = 0;
+			}
 		}
-		else
+		printf("Customer0 is trying to request resources:\n");
+		printReqOrRelVector(requestVector);
+		//requestResource() will still return -1 when it fail and return 0 when succeed in allocate, like textbook says
+		//altough I put the error message output part in the requestResource function
+		requestResource(0,requestVector);
+	
+		//release random number of resources		
+		sleep(1);
+		int releaseVector[resourceTypeQuan];
+		for(i = 0; i < resourceTypeQuan; i++)
 		{
-			requestVector[i] = 0;
+			if(allocMatrix[0][i] != 0)
+			{
+				releaseVector[i] = rand() % allocMatrix[0][i];
+			}
+			else
+			{
+				releaseVector[i] = 0;
+			}
 		}
+		printf("Customer0 is trying to release resources:\n");
+		printReqOrRelVector(releaseVector);
+		//releaseResource() will still return -1 when it fail and return 0 when succeed in allocate, like textbook says
+		//altough I put the error message output part in the releaseResource function
+		releaseResource(0,releaseVector);
 	}
-	printf("Customer0 is trying to request resources:\n");
-	printReqOrRelVector(requestVector);
-	//requestResource() will still return -1 when it fail and return 0 when succeed in allocate, like textbook says
-	//altough I put the error message output part in the requestResource function
-	requestResource(0,requestVector);
-	sleep(1);
-
-	//release random number of resources
-	int releaseVector[resourceTypeQuan];
-	for(i = 0; i < resourceTypeQuan; i++)
-	{
-		if(allocMatrix[0][i] != 0)
-		{
-			releaseVector[i] = rand() % allocMatrix[0][i];
-		}
-		else
-		{
-			releaseVector[i] = 0;
-		}
-	}
-	printf("Customer0 is trying to release resources:\n");
-	printReqOrRelVector(releaseVector);
-	//releaseResource() will still return -1 when it fail and return 0 when succeed in allocate, like textbook says
-	//altough I put the error message output part in the releaseResource function
-	releaseResource(0,releaseVector);
 }
 
 int requestResource(int processID,int requestVector[])
@@ -142,7 +151,7 @@ int requestResource(int processID,int requestVector[])
 	//check if still in safe status
 	if (ifInSafeMode() == 0)
 	{
-		printf("Allocated successfully.\nNow available resources vector is:\n");
+		printf("Safe. Allocated successfully.\nNow available resources vector is:\n");
 		printAvailable();
 		printf("Now allocated matrix is:\n");
 		printAllocMatrix();
@@ -298,17 +307,19 @@ int ifInSafeMode()
 		{
 			for(j = 0; j < resourceTypeQuan; j++)
 			{
-				if(needMatrix[i][j] < work[j])
+				if(needMatrix[i][j] <= work[j])
 				{
 					if(j == resourceTypeQuan - 1)//means we checked whole vector, so this process can execute
 					{
 						ifFinish[i] = 1;
 						for (k = 0; k < resourceTypeQuan; ++k)
 						{
-							work[k] += needMatrix[i][k];
+							work[k] += allocMatrix[i][k];
 							//execute and release resources
 						}
-						//if we use break, it will not check all process, so we should reset i to let it check from beginning
+						//if we break here, it will not check all process, so we should reset i to let it check from beginning
+						//If we cannot find any runnable process from beginning to the end in i loop, we can determine that
+						//there is no any runnable process, but we cannot know if we do not reset i.
 						i = -1;//at the end of this loop, i++, so -1++ = 0
 						break;//in loop j, break to loop i and check next runnable process
 					}
